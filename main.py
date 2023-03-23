@@ -1,55 +1,79 @@
 import os
-import time
+from playwright.sync_api import Playwright, sync_playwright
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from playwright.sync_api import Playwright, sync_playwright_with_timeout
-from youtube_dl import YoutubeDL
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
-# Set up headless browser
-chrome_options = Options()
-chrome_options.add_argument('--headless')
-browser = webdriver.Chrome(options=chrome_options)
 
-# Set up playwright
-with sync_playwright_with_timeout() as playwright:
-    browser = playwright.chromium.launch(headless=True)
-    page = browser.new_page()
+# Playwright download function
+def download_video(video_url):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
 
-    # Set up YouTube credentials
-    email = os.environ.get('EMAIL')
-    password = os.environ.get('PASSWORD')
+        # Navigate to video URL
+        page.goto(video_url)
+
+        # Wait for video to load
+        page.wait_for_selector("#video-title")
+
+        # Get the video source URL
+        video_source = page.query_selector("#player video").get_attribute("src")
+
+        # Download the video
+        page.goto(video_source)
+
+        # Wait for download to complete
+        page.wait_for_download()
+
+        # Rename downloaded file
+        os.rename(os.path.join(os.path.expanduser("~"), "Downloads", "video.mp4"), "final.mp4")
+
+        # Clean up
+        browser.close()
+
+
+# Selenium upload function
+def upload_video(video_path):
+    # Set up browser
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")
+    browser = webdriver.Chrome(options=options)
 
     # Log in to YouTube
-    page.goto('https://accounts.google.com/signin')
-    page.fill('input[type="email"]', email)
-    page.click('div[jsname="V67aGc"]')
-    page.wait_for_selector('input[type="password"]')
-    page.fill('input[type="password"]', password)
-    page.click('div[jsname="V67aGc"]')
-    page.wait_for_selector('input[aria-label="Search"]')
+    browser.get("https://www.youtube.com/upload")
+    email_input = WebDriverWait(browser, 10).until(EC.presence_of_element_located((By.ID, "identifierId")))
+    email_input.send_keys(os.environ.get("GMAIL_USERNAME"))
+    email_input.send_keys(Keys.RETURN)
+    password_input = WebDriverWait(browser, 10).until(EC.presence_of_element_located((By.NAME, "password")))
+    password_input.send_keys(os.environ.get("GMAIL_PASSWORD"))
+    password_input.send_keys(Keys.RETURN)
 
-    # Get the first video URL from the YouTube index page
-    page.goto('https://www.youtube.com')
-    video_link = page.query_selector('ytd-rich-item-renderer a[id="thumbnail"]')['href']
+    # Wait for upload page to load
+    browser.get("https://www.youtube.com/upload")
+    browser.find_element_by_xpath("//span[contains(text(), 'Video')]//parent::button").click()
+    browser.find_element_by_id("file-loader").send_keys(os.path.abspath(video_path))
 
-    # Download the video using youtube-dl
-    ydl_opts = {
-        'outtmpl': 'final.mp4'
-    }
-    with YoutubeDL(ydl_opts) as ydl:
-        ydl.download([video_link])
+    # Wait for upload to complete
+    WebDriverWait(browser, 600).until(EC.url_contains("video_manager"))
 
-    # Upload the video to YouTube
-    browser.get('https://www.youtube.com/upload')
-    upload_input = browser.find_element_by_css_selector('input[type="file"]')
-    upload_input.send_keys(os.path.abspath('final.mp4'))
-    time.sleep(5)  # Wait for the upload to complete
-    title_input = browser.find_element_by_css_selector('input[name="title"]')
-    title_input.send_keys('My uploaded video')
-    description_input = browser.find_element_by_css_selector('textarea[name="description"]')
-    description_input.send_keys('This is my uploaded video')
-    publish_button = browser.find_element_by_css_selector('button[data-action="publish"]')
-    publish_button.click()
-
-    # Close the browser
+    # Clean up
     browser.quit()
+
+
+# Main function
+def main():
+    # Get YouTube index page
+    index_page = "https://www.youtube.com"
+
+    # Download video
+    download_video(index_page)
+
+    # Upload video
+    upload_video("final.mp4")
+
+
+if __name__ == "__main__":
+    main()
