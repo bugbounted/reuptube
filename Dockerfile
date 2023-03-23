@@ -6,7 +6,7 @@ RUN apt-get update && \
     apt-get install -y python3 python3-pip
 
 # Install necessary Python packages
-RUN pip3 install playwright selenium youtube-dl
+RUN pip3 install playwright selenium
 
 # Copy the Python script to the container
 COPY main.py /app/
