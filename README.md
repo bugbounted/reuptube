@@ -77,3 +77,36 @@ ruby
 Copy code
 0 * * * * /usr/bin/python /path/to/your/script.py
 Replace "/path/to/your/script.py" with the actual path to your Python script.
+
+
+Here's a Dockerfile code that installs the necessary packages and sets up a cron job to run the main.py file every hour:
+
+bash
+Copy code
+# Use Ubuntu 18.04 as the base image
+FROM ubuntu:18.04
+
+# Install Python 3 and pip
+RUN apt-get update && \
+    apt-get install -y python3 python3-pip
+
+# Install necessary Python packages
+RUN pip3 install playwright selenium youtube-dl
+
+# Copy the Python script to the container
+COPY main.py /app/
+
+# Set up cron job to run the Python script every hour
+RUN echo "0 * * * * /usr/bin/python3 /app/main.py" > /etc/cron.d/my-cron
+RUN chmod 0644 /etc/cron.d/my-cron
+RUN crontab /etc/cron.d/my-cron
+
+# Start cron in the foreground
+CMD ["cron", "-f"]
+Save the above code in a file named Dockerfile.
+
+The COPY command copies the main.py file to the /app/ directory inside the container.
+
+The RUN commands set up a cron job to run the Python script every hour. The cron job is defined in the file /etc/cron.d/my-cron. The chmod command sets the appropriate permissions on the cron job file, and the crontab command installs the cron job.
+
+Finally, the CMD command starts the cron daemon in the foreground so that the container runs indefinitely.
